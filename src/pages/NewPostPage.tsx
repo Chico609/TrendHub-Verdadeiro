@@ -107,6 +107,7 @@ export default function NewPostPage() {
         .getPublicUrl(filePath);
 
       setMediaUrl(data.publicUrl);
+      setMediaType("image");
       addToast({ type: "success", title: "Imagem enviada com sucesso!" });
     } catch (error: any) {
       console.error("Upload error:", error);
@@ -122,6 +123,7 @@ export default function NewPostPage() {
     setImageFile(null);
     setImagePreview("");
     setMediaUrl("");
+    setMediaType("none");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
