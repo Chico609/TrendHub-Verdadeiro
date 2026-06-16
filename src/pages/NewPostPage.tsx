@@ -7,7 +7,7 @@
 
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Image, Video, Type, ArrowLeft, Send, Loader2 } from "lucide-react";
+import { Image, Video, Type, ArrowLeft, Send, Loader2, Upload, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/authStore";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,9 @@ export default function NewPostPage() {
   const [content, setContent] = useState("");
   const [mediaType, setMediaType] = useState<MediaType>("none");
   const [mediaUrl, setMediaUrl] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState("");
+  const [uploading, setUploading] = useState(false);
   const [communityId, setCommunityId] = useState("none");
   const [communities, setCommunities] = useState<Community[]>([]);
   const [loading, setLoading] = useState(false);
@@ -59,6 +62,67 @@ export default function NewPostPage() {
     };
     fetchCommunities();
   }, [user]);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validar tipo de arquivo
+    if (!file.type.startsWith("image/")) {
+      addToast({ type: "error", title: "Por favor, selecione uma imagem válida" });
+      return;
+    }
+
+    // Validar tamanho (máx 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      addToast({ type: "error", title: "A imagem não pode exceder 5MB" });
+      return;
+    }
+
+    setImageFile(file);
+    
+    // Criar preview local
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setImagePreview(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+
+    // Upload para Supabase Storage
+    setUploading(true);
+    try {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+      const filePath = `posts/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("post-images")
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // Obter URL pública
+      const { data } = supabase.storage
+        .from("post-images")
+        .getPublicUrl(filePath);
+
+      setMediaUrl(data.publicUrl);
+      addToast({ type: "success", title: "Imagem enviada com sucesso!" });
+    } catch (error: any) {
+      console.error("Upload error:", error);
+      addToast({ type: "error", title: "Erro ao enviar imagem", description: error.message });
+      setImageFile(null);
+      setImagePreview("");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setImageFile(null);
+    setImagePreview("");
+    setMediaUrl("");
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -196,24 +260,80 @@ export default function NewPostPage() {
           {/* Media URL input */}
           {mediaType !== "none" && (
             <div className="space-y-2">
-              <Label htmlFor="mediaUrl">
-                URL da {mediaType === "image" ? "imagem" : "vídeo"}
-              </Label>
-              <Input
-                id="mediaUrl"
-                type="url"
-                placeholder={
-                  mediaType === "image"
-                    ? "https://exemplo.com/imagem.jpg"
-                    : "https://youtube.com/watch?v=..."
-                }
-                value={mediaUrl}
-                onChange={(e) => setMediaUrl(e.target.value)}
-              />
+              {mediaType === "image" && (
+                <>
+                  <Label>Upload ou URL da imagem</Label>
+                  
+                  {/* File Upload */}
+                  <div className="border-2 border-dashed border-slate-600 rounded-lg p-4 text-center hover:border-cyan-500 transition-colors">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      disabled={uploading || !!imageFile}
+                      className="hidden"
+                      id="imageInput"
+                    />
+                    <label
+                      htmlFor="imageInput"
+                      className="flex flex-col items-center gap-2 cursor-pointer"
+                    >
+                      <Upload className="h-5 w-5 text-slate-400" />
+                      <span className="text-sm text-slate-400">
+                        {uploading
+                          ? "Enviando imagem..."
+                          : imageFile
+                          ? imageFile.name
+                          : "Clique para enviar ou arraste a imagem"}
+                      </span>
+                    </label>
+                  </div>
+
+                  {imageFile && (
+                    <div className="flex items-center gap-2 p-2 bg-green-500/10 rounded-lg border border-green-500/30">
+                      <span className="text-sm text-green-400 flex-1">✓ {imageFile.name}</span>
+                      <button
+                        type="button"
+                        onClick={handleRemoveImage}
+                        className="text-slate-400 hover:text-red-400"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                      <span className="text-slate-500 text-sm">ou</span>
+                    </div>
+                  </div>
+
+                  <Label htmlFor="mediaUrl">Cole a URL da imagem</Label>
+                  <Input
+                    id="mediaUrl"
+                    type="url"
+                    placeholder="https://exemplo.com/imagem.jpg"
+                    value={!imageFile ? mediaUrl : ""}
+                    onChange={(e) => !imageFile && setMediaUrl(e.target.value)}
+                    disabled={!!imageFile}
+                  />
+                </>
+              )}
+
               {mediaType === "video" && (
-                <p className="text-xs text-slate-400">
-                  💡 Dicas: Cole a URL do YouTube (youtube.com/watch?v=...), Vimeo (vimeo.com/...), ou qualquer vídeo MP4
-                </p>
+                <>
+                  <Label htmlFor="mediaUrl">URL do vídeo</Label>
+                  <Input
+                    id="mediaUrl"
+                    type="url"
+                    placeholder="https://youtube.com/watch?v=..."
+                    value={mediaUrl}
+                    onChange={(e) => setMediaUrl(e.target.value)}
+                  />
+                  <p className="text-xs text-slate-400">
+                    💡 Dicas: Cole a URL do YouTube (youtube.com/watch?v=...), Vimeo (vimeo.com/...), ou qualquer vídeo MP4
+                  </p>
+                </>
               )}
             </div>
           )}
@@ -241,10 +361,10 @@ export default function NewPostPage() {
           </div>
 
           {/* Preview */}
-          {mediaType === "image" && mediaUrl && (
+          {mediaType === "image" && (imagePreview || mediaUrl) && (
             <div className="rounded-xl overflow-hidden bg-slate-800 border border-slate-700">
               <img
-                src={mediaUrl}
+                src={imagePreview || mediaUrl}
                 alt="Preview"
                 className="w-full max-h-64 object-cover"
                 onError={(e) =>
@@ -267,7 +387,7 @@ export default function NewPostPage() {
               type="submit"
               variant="gradient"
               disabled={
-                loading || (!content.trim() && !(mediaType !== "none" && mediaUrl.trim()))
+                loading || uploading || (!content.trim() && !(mediaType !== "none" && mediaUrl.trim()))
               }
             >
               {loading ? (
