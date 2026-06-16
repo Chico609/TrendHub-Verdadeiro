@@ -155,34 +155,51 @@ export default function ChatPage() {
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event: "INSERT",
           schema: "public",
           table: "messages",
-          filter: `or(sender_id.eq.${user.id},receiver_id.eq.${user.id})`,
         },
         (payload) => {
-          const msg = payload.new as Message | undefined;
-          const oldMsg = payload.old as Message | undefined;
-
-          const isInCurrentConversation =
+          const msg = payload.new as Message;
+          const isForCurrentConversation =
             !!selectedUser &&
-            ((msg?.sender_id === user.id && msg?.receiver_id === selectedUser.id) ||
-              (msg?.sender_id === selectedUser.id && msg?.receiver_id === user.id) ||
-              (oldMsg?.sender_id === user.id && oldMsg?.receiver_id === selectedUser.id) ||
-              (oldMsg?.sender_id === selectedUser.id && oldMsg?.receiver_id === user.id));
+            ((msg.sender_id === user.id && msg.receiver_id === selectedUser.id) ||
+              (msg.sender_id === selectedUser.id && msg.receiver_id === user.id));
 
-          if (!isInCurrentConversation) {
-            fetchConversations();
-            return;
-          }
-
-          if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
-            fetchMessages();
-            fetchConversations();
+          if (isForCurrentConversation) {
+            setMessages((prev) =>
+              prev.some((existing) => existing.id === msg.id) ? prev : [...prev, msg]
+            );
             requestAnimationFrame(() => {
               bottomRef.current?.scrollIntoView({ behavior: "smooth" });
             });
           }
+
+          fetchConversations();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "messages",
+        },
+        (payload) => {
+          const updatedMsg = payload.new as Message;
+          if (
+            selectedUser &&
+            ((updatedMsg.sender_id === user.id && updatedMsg.receiver_id === selectedUser.id) ||
+              (updatedMsg.sender_id === selectedUser.id && updatedMsg.receiver_id === user.id))
+          ) {
+            setMessages((prev) =>
+              prev.map((message) =>
+                message.id === updatedMsg.id ? updatedMsg : message
+              )
+            );
+          }
+
+          fetchConversations();
         }
       )
       .subscribe();
@@ -190,6 +207,18 @@ export default function ChatPage() {
     return () => {
       supabase.removeChannel(channel);
     };
+  }, [user, selectedUser, fetchConversations]);
+
+  // Fallback polling so messages still refresh if realtime is delayed
+  useEffect(() => {
+    if (!user || !selectedUser) return;
+
+    const poll = window.setInterval(() => {
+      fetchMessages();
+      fetchConversations();
+    }, 1500);
+
+    return () => window.clearInterval(poll);
   }, [user, selectedUser, fetchMessages, fetchConversations]);
 
   // Scroll to bottom on new messages
