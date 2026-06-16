@@ -62,7 +62,15 @@ export default function NewPostPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!content.trim() || !user) return;
+    if (!user) return;
+
+    const hasMedia = mediaType !== "none" && mediaUrl.trim();
+    const hasContent = content.trim().length > 0;
+
+    if (!hasContent && !hasMedia) {
+      addToast({ type: "error", title: "Digite algo ou adicione uma imagem/vídeo" });
+      return;
+    }
 
     if (content.length > MAX_CHARS) {
       addToast({ type: "error", title: `Máximo de ${MAX_CHARS} caracteres` });
@@ -197,37 +205,18 @@ export default function NewPostPage() {
                 placeholder={
                   mediaType === "image"
                     ? "https://exemplo.com/imagem.jpg"
-                    : "https://exemplo.com/video.mp4"
+                    : "https://youtube.com/watch?v=..."
                 }
                 value={mediaUrl}
                 onChange={(e) => setMediaUrl(e.target.value)}
               />
+              {mediaType === "video" && (
+                <p className="text-xs text-slate-400">
+                  💡 Dicas: Cole a URL do YouTube (youtube.com/watch?v=...), Vimeo (vimeo.com/...), ou qualquer vídeo MP4
+                </p>
+              )}
             </div>
           )}
-            {/* Media URL input */}
-            {mediaType !== "none" && (
-              <div className="space-y-2">
-                <Label htmlFor="mediaUrl">
-                  URL da {mediaType === "image" ? "imagem" : "vídeo"}
-                </Label>
-                <Input
-                  id="mediaUrl"
-                  type="url"
-                  placeholder={
-                    mediaType === "image"
-                      ? "https://exemplo.com/imagem.jpg"
-                      : "https://youtube.com/watch?v=..."
-                  }
-                  value={mediaUrl}
-                  onChange={(e) => setMediaUrl(e.target.value)}
-                />
-                {mediaType === "video" && (
-                  <p className="text-xs text-slate-400">
-                    💡 Dicas: Cole a URL do YouTube (youtube.com/watch?v=...), Vimeo (vimeo.com/...), ou qualquer vídeo MP4
-                  </p>
-                )}
-              </div>
-            )}
           {/* Community selector */}
           <div className="space-y-2">
             <Label>Comunidade (opcional)</Label>
@@ -277,7 +266,9 @@ export default function NewPostPage() {
             <Button
               type="submit"
               variant="gradient"
-              disabled={loading || !content.trim()}
+              disabled={
+                loading || (!content.trim() && !(mediaType !== "none" && mediaUrl.trim()))
+              }
             >
               {loading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

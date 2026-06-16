@@ -167,167 +167,68 @@ export function PostCard({ post, onDelete, onLikeToggle }: PostCardProps) {
 
       {post.media_url && post.media_type === "video" && (
         <div className="rounded-xl overflow-hidden mb-3 bg-slate-800 aspect-video relative">
-          <video
-            src={post.media_url}
-            controls
-            className="w-full h-full object-contain"
-            poster=""
-          >
-            <source src={post.media_url} />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <a
-                href={post.media_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 text-cyan-400 text-sm"
-              >
-                <Play className="h-5 w-5" />
-                Abrir vídeo
-                <ExternalLink className="h-4 w-4" />
-              </a>
-            </div>
-          </video>
-        </div>
-      )}
-        {/* Media */}
-        {post.media_url && post.media_type === "image" && (
-          <div className="rounded-xl overflow-hidden mb-3 bg-slate-800">
-            <img
-              src={post.media_url}
-              alt="Post media"
-              className="w-full max-h-96 object-cover"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = "none";
-              }}
-            />
-          </div>
-        )}
+          {(() => {
+            const getYouTubeId = (url: string) => {
+              try {
+                const urlObj = new URL(url);
+                return urlObj.searchParams.get("v") || urlObj.pathname.split("/").pop();
+              } catch {
+                return null;
+              }
+            };
 
-        {post.media_url && post.media_type === "video" && (
-          <div className="rounded-xl overflow-hidden mb-3 bg-slate-800 aspect-video relative">
-            {/* YouTube embed */}
-            {post.media_url.includes('youtube.com') || post.media_url.includes('youtu.be') ? (
-              <iframe
-                width="100%"
-                height="100%"
-                src={post.media_url.replace('watch?v=', 'embed/').replace('youtu.be/', 'youtube.com/embed/')}
-                title="YouTube video"
-                frameBorder="0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                className="w-full h-full"
-              />
-            ) : /* Vimeo embed */ post.media_url.includes('vimeo.com') ? (
-              <iframe
-                src={`https://player.vimeo.com/video/${post.media_url.split('/').pop()}`}
-                width="100%"
-                height="100%"
-                frameBorder="0"
-                allow="autoplay; fullscreen; picture-in-picture"
-                allowFullScreen
-                className="w-full h-full"
-              />
-            ) : (
-              /* Regular video player */
+            const youtubeId = getYouTubeId(post.media_url);
+            const isYouTube =
+              post.media_url.includes("youtube.com") ||
+              post.media_url.includes("youtu.be");
+            const isVimeo = post.media_url.includes("vimeo.com");
+
+            if (isYouTube && youtubeId) {
+              return (
+                <iframe
+                  width="100%"
+                  height="100%"
+                  src={`https://www.youtube.com/embed/${youtubeId}?rel=0`}
+                  title="YouTube video"
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="w-full h-full"
+                />
+              );
+            } else if (isVimeo) {
+              const vimeoId = post.media_url
+                .split("/")
+                .filter((segment) => /^\d+$/.test(segment))
+                .pop();
+              return (
+                <iframe
+                  src={`https://player.vimeo.com/video/${vimeoId}`}
+                  width="100%"
+                  height="100%"
+                  frameBorder="0"
+                  allow="autoplay; fullscreen"
+                  allowFullScreen
+                  className="w-full h-full"
+                />
+              );
+            }
+
+            return (
               <video
                 src={post.media_url}
                 controls
-                className="w-full h-full object-contain"
                 controlsList="nodownload"
+                className="w-full h-full object-contain"
                 onError={(e) => {
-                  console.error('Video load error:', e);
+                  console.error("Video failed to load:", post.media_url);
                   (e.target as HTMLVideoElement).style.display = "none";
                 }}
-              >
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-slate-300">
-                  <Play className="h-8 w-8" />
-                  <a
-                    href={post.media_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-cyan-400 text-sm hover:text-cyan-300"
-                  >
-                    Abrir vídeo
-                    <ExternalLink className="h-4 w-4" />
-                  </a>
-                </div>
-              </video>
-            )}
-          </div>
-        )}
-          {post.media_url && post.media_type === "video" && (
-            <div className="rounded-xl overflow-hidden mb-3 bg-slate-800 aspect-video relative">
-              {(() => {
-                // Extract YouTube video ID
-                const getYouTubeId = (url: string) => {
-                  try {
-                    const urlObj = new URL(url);
-                    const id = urlObj.searchParams.get('v') || urlObj.pathname.split('/').pop();
-                    return id?.split('?')[0] || null;
-                  } catch {
-                    return null;
-                  }
-                };
-
-                const youtubeId = getYouTubeId(post.media_url);
-                const isYouTube = post.media_url.includes('youtube.com') || post.media_url.includes('youtu.be');
-                const isVimeo = post.media_url.includes('vimeo.com');
-
-                if (isYouTube && youtubeId) {
-                  return (
-                    <iframe
-                      width="100%"
-                      height="100%"
-                      src={`https://www.youtube.com/embed/${youtubeId}?rel=0`}
-                      title="YouTube video"
-                      frameBorder="0"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope"
-                      allowFullScreen
-                      className="w-full h-full"
-                    />
-                  );
-                } else if (isVimeo) {
-                  const vimeoId = post.media_url.split('/').filter(p => /^\d+$/.test(p)).pop();
-                  return (
-                    <iframe
-                      src={`https://player.vimeo.com/video/${vimeoId}`}
-                      width="100%"
-                      height="100%"
-                      frameBorder="0"
-                      allow="autoplay; fullscreen"
-                      allowFullScreen
-                      className="w-full h-full"
-                    />
-                  );
-                } else {
-                  return (
-                    <video
-                      src={post.media_url}
-                      controls
-                      controlsList="nodownload"
-                      className="w-full h-full object-contain"
-                      onError={() => {
-                        console.error('Video failed to load:', post.media_url);
-                      }}
-                    >
-                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-slate-300 bg-slate-900/50">
-                        <Play className="h-8 w-8" />
-                        <a
-                          href={post.media_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 text-cyan-400 text-sm hover:text-cyan-300"
-                        >
-                          Abrir vídeo
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
-                      </div>
-                    </video>
-                  );
-                }
-              })()}
-            </div>
-          )}
+              />
+            );
+          })()}
+        </div>
+      )}
       <div className="flex items-center gap-1 pt-2 border-t border-slate-800">
         <button
           onClick={handleLike}
