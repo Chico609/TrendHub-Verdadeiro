@@ -158,6 +158,7 @@ export default function ChatPage() {
           event: "*",
           schema: "public",
           table: "messages",
+          filter: `or(sender_id.eq.${user.id},receiver_id.eq.${user.id})`,
         },
         (payload) => {
           const msg = payload.new as Message | undefined;
@@ -170,26 +171,17 @@ export default function ChatPage() {
               (oldMsg?.sender_id === user.id && oldMsg?.receiver_id === selectedUser.id) ||
               (oldMsg?.sender_id === selectedUser.id && oldMsg?.receiver_id === user.id));
 
-          if (!isInCurrentConversation) return;
-
-          if (payload.eventType === "INSERT" && msg) {
-            setMessages((prev) =>
-              prev.some((existing) => existing.id === msg.id)
-                ? prev
-                : [...prev, msg]
-            );
+          if (!isInCurrentConversation) {
             fetchConversations();
-            bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+            return;
           }
 
-          if (payload.eventType === "UPDATE") {
-            const updatedMsg = payload.new as Message;
-            setMessages((prev) =>
-              prev.map((existing) =>
-                existing.id === updatedMsg.id ? updatedMsg : existing
-              )
-            );
+          if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
+            fetchMessages();
             fetchConversations();
+            requestAnimationFrame(() => {
+              bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+            });
           }
         }
       )
@@ -198,7 +190,7 @@ export default function ChatPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, selectedUser, fetchConversations]);
+  }, [user, selectedUser, fetchMessages, fetchConversations]);
 
   // Scroll to bottom on new messages
   useEffect(() => {

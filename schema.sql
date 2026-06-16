@@ -90,6 +90,9 @@ create table if not exists messages (
   created_at timestamptz default now()
 );
 
+-- Enable realtime for the messages table (required for live chat updates)
+alter publication supabase_realtime add table public.messages;
+
 -- ============================================================================
 -- PART 3: ENABLE ROW LEVEL SECURITY (RLS) ON TABLES
 -- ============================================================================
