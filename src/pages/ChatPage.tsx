@@ -148,23 +148,48 @@ export default function ChatPage() {
 
   // Realtime subscription
   useEffect(() => {
-    if (!user || !selectedUser) return;
+    if (!user) return;
 
     const channel = supabase
-      .channel(`chat-${user.id}-${selectedUser.id}`)
+      .channel(`chat-room-${user.id}`)
       .on(
         "postgres_changes",
         {
-          event: "INSERT",
+          event: "*",
           schema: "public",
           table: "messages",
-          filter: `receiver_id=eq.${user.id}`,
         },
         (payload) => {
-          const msg = payload.new as Message;
-          if (msg.sender_id === selectedUser.id) {
-            setMessages((prev) => [...prev, msg]);
+          const msg = payload.new as Message | undefined;
+          const oldMsg = payload.old as Message | undefined;
+
+          const isInCurrentConversation =
+            !!selectedUser &&
+            ((msg?.sender_id === user.id && msg?.receiver_id === selectedUser.id) ||
+              (msg?.sender_id === selectedUser.id && msg?.receiver_id === user.id) ||
+              (oldMsg?.sender_id === user.id && oldMsg?.receiver_id === selectedUser.id) ||
+              (oldMsg?.sender_id === selectedUser.id && oldMsg?.receiver_id === user.id));
+
+          if (!isInCurrentConversation) return;
+
+          if (payload.eventType === "INSERT" && msg) {
+            setMessages((prev) =>
+              prev.some((existing) => existing.id === msg.id)
+                ? prev
+                : [...prev, msg]
+            );
+            fetchConversations();
             bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+          }
+
+          if (payload.eventType === "UPDATE") {
+            const updatedMsg = payload.new as Message;
+            setMessages((prev) =>
+              prev.map((existing) =>
+                existing.id === updatedMsg.id ? updatedMsg : existing
+              )
+            );
+            fetchConversations();
           }
         }
       )
@@ -173,7 +198,7 @@ export default function ChatPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, selectedUser]);
+  }, [user, selectedUser, fetchConversations]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -199,7 +224,10 @@ export default function ChatPage() {
       .single();
 
     if (data) {
-      setMessages((prev) => [...prev, data as Message]);
+      const msg = data as Message;
+      setMessages((prev) =>
+        prev.some((existing) => existing.id === msg.id) ? prev : [...prev, msg]
+      );
       fetchConversations();
     }
   };
