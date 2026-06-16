@@ -95,22 +95,31 @@ export default function NewPostPage() {
       const fileName = `${user.id}-${Date.now()}.${fileExt}`;
       const filePath = `posts/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
+      console.log("🔼 Iniciando upload:", { fileName, filePath, fileSize: file.size });
+
+      const { error: uploadError, data } = await supabase.storage
         .from("post-images")
         .upload(filePath, file);
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error("❌ Erro de upload:", uploadError);
+        throw uploadError;
+      }
+
+      console.log("✅ Upload bem-sucedido:", data);
 
       // Obter URL pública
-      const { data } = supabase.storage
+      const { data: urlData } = supabase.storage
         .from("post-images")
         .getPublicUrl(filePath);
 
-      setMediaUrl(data.publicUrl);
+      console.log("🔗 URL gerada:", urlData.publicUrl);
+
+      setMediaUrl(urlData.publicUrl);
       setMediaType("image");
       addToast({ type: "success", title: "Imagem enviada com sucesso!" });
     } catch (error: any) {
-      console.error("Upload error:", error);
+      console.error("❌ Upload error:", error);
       addToast({ type: "error", title: "Erro ao enviar imagem", description: error.message });
       setImageFile(null);
       setImagePreview("");
@@ -165,11 +174,15 @@ export default function NewPostPage() {
       payload.community_id = communityId;
     }
 
+    console.log("📤 Payload sendo enviado:", payload);
+
     const { error } = await supabase.from("posts").insert(payload);
 
     if (error) {
+      console.error("❌ Erro ao criar post:", error);
       addToast({ type: "error", title: "Erro ao criar post", description: error.message });
     } else {
+      console.log("✅ Post criado com sucesso!");
       addToast({ type: "success", title: "Post publicado! 🚀" });
       navigate("/feed");
     }
